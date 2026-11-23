@@ -51,6 +51,7 @@ GRIST_WIDGET_LIST_URL="https://mon-serveur.example/manifest.json"
    | Date           | Date     |
    | Projet         | Texte **ou** Référence vers une table Projets |
    | Activité       | Choix (optionnel) — ou Référence, ou Texte |
+   | Agent          | Référence vers une table Agents (optionnel) — ou Choix, ou Texte |
    | Heures         | Numérique|
    | Commentaire    | Texte    |
 
@@ -60,6 +61,11 @@ GRIST_WIDGET_LIST_URL="https://mon-serveur.example/manifest.json"
    affiche les lignes de la table cible ; s'il n'existe pas ou reste en Texte,
    le widget bascule sur une saisie libre avec suggestions (et masque le champ
    si la colonne n'existe pas).
+
+   Le champ **Agent** suit la même logique : créez une table **Agents**
+  (par ex. une colonne `Name` avec les noms), puis définissez `Agent` dans
+   **Temps** comme **Référence** ciblant `Agents` : le widget affiche une
+   liste déroulante des agents et enregistre le rowId.
 
 2. Ajoutez le widget sur cette table et liez-le à celle-ci
    (*Choisir les données source* → Temps).

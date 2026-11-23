@@ -218,6 +218,11 @@
         <select id="activiteRef" style="display:none"></select>
         <datalist id="activites"></datalist>
       </label>
+      <label class="grow" id="labelAgent">Agent
+        <input type="text" id="agent" list="agents" placeholder="Optionnel" />
+        <select id="agentRef" style="display:none"></select>
+        <datalist id="agents"></datalist>
+      </label>
       <label class="grow">Commentaire
         <input type="text" id="commentaire" placeholder="Optionnel" />
       </label>
@@ -244,6 +249,7 @@
     { name: 'Date', title: 'Date', type: 'Date' },
     { name: 'Projet', title: 'Projet', optional: true },
     { name: 'Activité', title: 'Activité', optional: true },
+    { name: 'Agent', title: 'Agent', optional: true },
     { name: 'Heures', title: 'Heures', type: 'Numeric' },
     { name: 'Commentaire', title: 'Commentaire', type: 'Text', optional: true }
   ];
@@ -264,7 +270,8 @@
 
   var CLES_CHOIX = [
     { cle: 'projet', libelle: 'projet', saisie: 'projet', select: 'projetRef', datalist: 'projets' },
-    { cle: 'activite', libelle: 'activité', saisie: 'activite', select: 'activiteRef', datalist: 'activites' }
+    { cle: 'activite', libelle: 'activité', saisie: 'activite', select: 'activiteRef', datalist: 'activites', labelId: 'labelActivite' },
+    { cle: 'agent', libelle: 'agent', saisie: 'agent', select: 'agentRef', datalist: 'agents', labelId: 'labelAgent' }
   ];
 
   var $ = function (id) { return document.getElementById(id); };
@@ -346,6 +353,7 @@
       date: nom('Date'),
       projet: nom('Projet'),
       activite: nom('Activité'),
+      agent: nom('Agent'),
       heures: nom('Heures'),
       commentaire: nom('Commentaire')
     };
@@ -360,6 +368,7 @@
           date: versDate(r[noms.date]),
           projet: labelPour('projet', r[noms.projet]),
           activite: labelPour('activite', r[noms.activite]),
+          agent: labelPour('agent', r[noms.agent]),
           heures: Number(r[noms.heures]) || 0,
           commentaire: r[noms.commentaire] != null ? String(r[noms.commentaire]) : ''
         };
@@ -607,12 +616,12 @@
       var select = $(info.select);
       var cfg = state.champs[info.cle];
       var enSelect = !!cfg;
-      if (info.cle === 'activite' && !colonneDisponible('activite')) {
+      if (info.cle !== 'projet' && !colonneDisponible(info.cle)) {
         input.style.display = 'none';
         select.style.display = 'none';
         input.required = false;
         select.required = false;
-        var label = $('labelActivite');
+        var label = $(info.labelId);
         if (label) label.style.display = 'none';
         return;
       }
@@ -681,10 +690,10 @@
     var table = document.createElement('table');
     var thead = document.createElement('thead');
     var trh = document.createElement('tr');
-    ['Projet', 'Activité', 'Commentaire', 'Heures', ''].forEach(function (t, i) {
+    ['Projet', 'Activité', 'Agent', 'Commentaire', 'Heures', ''].forEach(function (t, i) {
       var th = document.createElement('th');
       th.textContent = t;
-      if (i === 3) th.className = 'heures';
+      if (i === 4) th.className = 'heures';
       trh.appendChild(th);
     });
     thead.appendChild(trh);
@@ -698,23 +707,27 @@
       c2.textContent = e.activite;
       if (!e.activite) c2.style.color = 'var(--muted)';
       var c3 = document.createElement('td');
-      c3.textContent = e.commentaire;
-      if (!e.commentaire) c3.style.color = 'var(--muted)';
+      c3.textContent = e.agent;
+      if (!e.agent) c3.style.color = 'var(--muted)';
       var c4 = document.createElement('td');
-      c4.className = 'heures';
-      c4.textContent = formateHeures(e.heures);
+      c4.textContent = e.commentaire;
+      if (!e.commentaire) c4.style.color = 'var(--muted)';
       var c5 = document.createElement('td');
+      c5.className = 'heures';
+      c5.textContent = formateHeures(e.heures);
+      var c6 = document.createElement('td');
       var btn = document.createElement('button');
       btn.className = 'btn-suppr';
       btn.title = 'Supprimer cette entrée';
       btn.textContent = '✕';
       btn.addEventListener('click', function () { supprimerEntree(e.id); });
-      c5.appendChild(btn);
+      c6.appendChild(btn);
       tr.appendChild(c1);
       tr.appendChild(c2);
       tr.appendChild(c3);
       tr.appendChild(c4);
       tr.appendChild(c5);
+      tr.appendChild(c6);
       tbody.appendChild(tr);
     });
     table.appendChild(tbody);
@@ -748,6 +761,10 @@
     var activiteEnRef = !!(cfgActivite && cfgActivite.mode === 'ref');
     var champActivite = cfgActivite ? $(cfgActivite.select) : $('activite');
     var activite = champActivite ? champActivite.value.trim() : '';
+    var cfgAgent = state.champs.agent;
+    var agentEnRef = !!(cfgAgent && cfgAgent.mode === 'ref');
+    var champAgent = cfgAgent ? $(cfgAgent.select) : $('agent');
+    var agent = champAgent ? champAgent.value.trim() : '';
     var heuresBrut = $('heures').value;
     var commentaire = $('commentaire').value.trim();
     var projetValide = projetEnRef ? !!$('projetRef').value : !!projet;
@@ -769,11 +786,15 @@
       if (activite) {
         champs[noms.activite] = activiteEnRef ? Number($('activiteRef').value) : activite;
       }
+      if (agent) {
+        champs[noms.agent] = agentEnRef ? Number($('agentRef').value) : agent;
+      }
       if (commentaire) champs[noms.commentaire] = commentaire;
       await grist.getTable().create({ fields: champs });
       $('heures').value = '';
       $('commentaire').value = '';
       if (champActivite) champActivite.value = '';
+      if (champAgent) champAgent.value = '';
       if (projetEnRef) {
         $('projetRef').value = '';
         $('projetRef').focus();

@@ -6,7 +6,11 @@ passé sur chaque projet, jour par jour.
 ## Fonctionnalités
 
 - Saisie rapide : **date**, **projet** (avec suggestions automatiques),
-  **heures** (pas de 0,25 h) et **commentaire** optionnel.
+  **heures** et **commentaire** optionnel.
+- **Heures en centièmes** : la valeur est enregistrée en centièmes d'heures
+  dans Grist (ex. `1,75`), et affichée partout en **heures / minutes**
+  (ex. `1 h 45`). La saisie accepte aussi les durées `1h45`, `1:45`,
+  `45 min` ou `45` (unit(hour)s entières → `45` = 45 h ; utilisez `0,75` pour 45 min).
 - Navigation jour par jour (‹ / ›) avec total d'heures affiché à côté de la date.
 - **Répartition du jour** par projet (barres proportionnelles).
 - Liste des entrées du jour, suppression en un clic (✕).

@@ -49,7 +49,7 @@ GRIST_WIDGET_LIST_URL="https://mon-serveur.example/manifest.json"
    | Colonne        | Type     |
    |----------------|----------|
    | Date           | Date     |
-   | Projet         | Texte    |
+   | Projet         | Texte **ou** Référence vers une table Projets |
    | Heures         | Numérique|
    | Commentaire    | Texte    |
 
@@ -58,6 +58,16 @@ GRIST_WIDGET_LIST_URL="https://mon-serveur.example/manifest.json"
 3. Dans le panneau de création, rapprochez les colonnes **Date**, **Projet**,
    **Heures**, **Commentaire** (le mapping permet de renommer les colonnes
    librement).
+4. **Champ Projet en Référence (optionnel mais recommandé)** : créez une table
+   **Projets** (par ex. une colonne `Name` de type Texte), puis dans **Temps**
+   définissez `Projet` comme une colonne de type **Référence** ciblant
+   `Projets`. Le widget détecte automatiquement qu'il s'agit d'une référence :
+   il affiche une liste déroulante avec les lignes de la table cible et
+   enregistre l'`rowId` (la vraie référence Grist), pas du simple texte. La
+   colonne affichée est choisie automatiquement (priorité aux colonnes
+   `Name`, `Nom`, `Titre`, `Projet`, `Label`, ou la première colonne texte).
+   Si `Projet` reste une colonne Texte, la saisie libre avec suggestions
+   continue de fonctionner comme avant.
 
 ### Bonus : table Projets pour les suggestions
 

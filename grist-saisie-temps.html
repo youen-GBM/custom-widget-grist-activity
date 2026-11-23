@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Saisie du temps</title>
+<script src="https://docs.getgrist.com/grist-plugin-api.js"></script>
+<style>
+  :root {
+    --accent: #1a73e8;
+    --accent-dark: #1557b0;
+    --bg: #ffffff;
+    --border: #d9d9d9;
+    --muted: #66707a;
+    --text: #1c2430;
+    --danger: #c0392b;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    font-family: Helvetica, Arial, sans-serif;
+    font-size: 14px;
+    color: var(--text);
+    background: var(--bg);
+  }
+  #app {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    padding: 12px 14px;
+    gap: 10px;
+  }
+  header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 10px;
+  }
+  h1 { font-size: 16px; margin: 0; }
+  .jour-nav { display: flex; align-items: center; gap: 6px; }
+  .jour-nav input[type="date"] {
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 3px 6px;
+    font: inherit;
+  }
+  .total-jour { font-weight: bold; color: var(--accent); white-space: nowrap; }
+  .nav-btn {
+    border: 1px solid var(--border);
+    background: #fff;
+    border-radius: 4px;
+    cursor: pointer;
+    padding: 2px 8px;
+    font: inherit;
+  }
+  .nav-btn:hover { background: #f2f6fc; }
+  .banner {
+    background: #fff3cd;
+    border: 1px solid #ffe08a;
+    color: #7a5c00;
+    border-radius: 6px;
+    padding: 8px 10px;
+  }
+  form {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  form .row { display: flex; flex-wrap: wrap; gap: 10px; }
+  label {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 12px;
+    color: var(--muted);
+  }
+  label.grow { flex: 1; min-width: 160px; }
+  input {
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 6px 8px;
+    font: inherit;
+    color: var(--text);
+    background: #fff;
+  }
+  input:focus { outline: 2px solid #b9d2f5; border-color: var(--accent); }
+  #heures { width: 86px; }
+  button[type="submit"] {
+    align-self: flex-end;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    padding: 8px 18px;
+    font: inherit;
+    font-weight: bold;
+    cursor: pointer;
+  }
+  button[type="submit"]:hover { background: var(--accent-dark); }
+  button[type="submit"]:disabled { opacity: .55; cursor: default; }
+  section h2 { font-size: 13px; color: var(--muted); margin: 4px 0 6px; text-transform: uppercase; letter-spacing: .04em; }
+  #resume { display: none; }
+  #resume.visible { display: block; }
+  .repartition { display: flex; flex-direction: column; gap: 4px; }
+  .barre-ligne { display: flex; align-items: center; gap: 8px; }
+  .barre-nom { width: 34%; text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .barre-fond { flex: 1; background: #eef1f4; border-radius: 4px; height: 14px; overflow: hidden; }
+  .barre-valeur { width: 52px; color: var(--muted); }
+  .barre { height: 100%; background: var(--accent); }
+  #liste { flex: 1; overflow-y: auto; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid #eceff1; }
+  th { font-size: 12px; color: var(--muted); font-weight: normal; }
+  td.heures, th.heures { text-align: right; }
+  td .btn-suppr {
+    border: none;
+    background: none;
+    color: var(--danger);
+    cursor: pointer;
+    font-size: 14px;
+    padding: 2px 6px;
+    border-radius: 4px;
+  }
+  td .btn-suppr:hover { background: #fdecea; }
+  .vide { color: var(--muted); padding: 14px 4px; }
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1>⏱ Saisie du temps</h1>
+    <div class="jour-nav">
+      <button class="nav-btn" id="jourPrecedent" title="Jour précédent">‹</button>
+      <input type="date" id="jourAffiche" />
+      <button class="nav-btn" id="jourSuivant" title="Jour suivant">›</button>
+      <span class="total-jour" id="totalJour"></span>
+    </div>
+  </header>
+
+  <div class="banner" id="banner" hidden></div>
+
+  <form id="form">
+    <div class="row">
+      <label>Date
+        <input type="date" id="date" required />
+      </label>
+      <label class="grow">Projet
+        <input type="text" id="projet" list="projets" required placeholder="Nom du projet" />
+        <datalist id="projets"></datalist>
+      </label>
+      <label>Heures
+        <input type="number" id="heures" min="0" step="0.25" required inputmode="decimal" />
+      </label>
+    </div>
+    <div class="row">
+      <label class="grow">Commentaire
+        <input type="text" id="commentaire" placeholder="Optionnel" />
+      </label>
+      <button type="submit" id="btnAjouter">Ajouter</button>
+    </div>
+  </form>
+
+  <section id="resume">
+    <h2>Répartition du jour</h2>
+    <div class="repartition" id="repartition"></div>
+  </section>
+
+  <section id="sectionListe">
+    <h2>Entrées du jour</h2>
+    <div id="liste"></div>
+  </section>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  var COLS = [
+    { name: 'Date', title: 'Date', type: 'Date' },
+    { name: 'Projet', title: 'Projet', type: 'Text', optional: true },
+    { name: 'Heures', title: 'Heures', type: 'Numeric' },
+    { name: 'Commentaire', title: 'Commentaire', type: 'Text', optional: true }
+  ];
+
+  var JOURS = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'];
+  var MOIS = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin',
+              'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
+
+  var state = {
+    entrees: [],
+    mappings: null
+  };
+
+  var $ = function (id) { return document.getElementById(id); };
+
+  function montreBandeau(message) {
+    var b = $('banner');
+    b.textContent = message;
+    b.hidden = false;
+  }
+
+  function versDate(valeur) {
+    if (valeur == null) return null;
+    if (valeur instanceof Date && !isNaN(valeur)) return valeur;
+    if (typeof valeur === 'number') return valeur; // jours depuis l'époque (code 'd')
+    if (Array.isArray(valeur) && valeur[0] === 'd') return valeur[1];
+    if (typeof valeur.toDate === 'function') return valeur.toDate(); // moment
+    if (typeof valeur === 'string') {
+      var d = new Date(valeur + 'T00:00:00');
+      return isNaN(d) ? null : d;
+    }
+    return null;
+  }
+
+  function versISO(date) {
+    var a = date.getFullYear();
+    var m = ('0' + (date.getMonth() + 1)).slice(-2);
+    var j = ('0' + date.getDate()).slice(-2);
+    return a + '-' + m + '-' + j;
+  }
+
+  function versEntier(date) {
+    return Math.floor(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()) / 86400000);
+  }
+
+  function dateDepuisEntier(jours) {
+    return new Date(jours * 86400000);
+  }
+
+  function formateDate(date) {
+    return JOURS[date.getDay()] + ' ' + date.getDate() + ' ' + MOIS[date.getMonth()] + ' ' + date.getFullYear();
+  }
+
+  function formateHeures(h) {
+    var arrondi = Math.round(h * 100) / 100;
+    return String(arrondi).replace('.', ',') + ' h';
+  }
+
+  function nomsColonnes(mapping) {
+    function nom(k) {
+      var v = mapping ? mapping[k] : null;
+      if (Array.isArray(v)) v = v[0];
+      return v || k;
+    }
+    return {
+      date: nom('Date'),
+      projet: nom('Projet'),
+      heures: nom('Heures'),
+      commentaire: nom('Commentaire')
+    };
+  }
+
+  function entreesJour(iso) {
+    var noms = nomsColonnes(state.mappings);
+    return state.entrees
+      .map(function (r) {
+        return {
+          id: r.id,
+          date: versDate(r[noms.date]),
+          projet: r[noms.projet] != null ? String(r[noms.projet]) : '',
+          heures: Number(r[noms.heures]) || 0,
+          commentaire: r[noms.commentaire] != null ? String(r[noms.commentaire]) : ''
+        };
+      })
+      .filter(function (e) {
+        return e.date && versISO(e.date) === iso;
+      })
+      .sort(function (a, b) { return a.id - b.id; });
+  }
+
+  function projetsConnus() {
+    var noms = nomsColonnes(state.mappings);
+    var set = {};
+    state.entrees.forEach(function (r) {
+      var p = r[noms.projet];
+      if (p != null && p !== '') set[String(p)] = true;
+    });
+    return Object.keys(set).sort(function (a, b) {
+      return a.localeCompare(b, 'fr');
+    });
+  }
+
+  function majSugestionsProjets() {
+    var dl = $('projets');
+    dl.innerHTML = '';
+    projetsConnus().forEach(function (p) {
+      var o = document.createElement('option');
+      o.value = p;
+      dl.appendChild(o);
+    });
+  }
+
+  function rendResume() {
+    var iso = $('jourAffiche').value;
+    var entrees = entreesJour(iso);
+    var rep = $('repartition');
+    var parProjet = {};
+    entrees.forEach(function (e) {
+      var nom = e.projet || '(sans projet)';
+      parProjet[nom] = (parProjet[nom] || 0) + e.heures;
+    });
+    var noms = Object.keys(parProjet).sort(function (a, b) {
+      return parProjet[b] - parProjet[a];
+    });
+    var max = noms.length ? Math.max.apply(null, noms.map(function (n) { return parProjet[n]; })) : 0;
+    $('resume').className = noms.length ? 'visible' : '';
+    rep.innerHTML = '';
+    noms.forEach(function (n) {
+      var ligne = document.createElement('div');
+      ligne.className = 'barre-ligne';
+      var lbl = document.createElement('span');
+      lbl.className = 'barre-nom';
+      lbl.textContent = n;
+      lbl.title = n;
+      var fond = document.createElement('span');
+      fond.className = 'barre-fond';
+      var v = document.createElement('span');
+      v.className = 'barre';
+      v.style.width = max ? (100 * parProjet[n] / max) + '%' : '0';
+      fond.appendChild(v);
+      var val = document.createElement('span');
+      val.className = 'barre-valeur';
+      val.textContent = formateHeures(parProjet[n]);
+      ligne.appendChild(lbl);
+      ligne.appendChild(fond);
+      ligne.appendChild(val);
+      rep.appendChild(ligne);
+    });
+  }
+
+  function rendListe() {
+    var iso = $('jourAffiche').value;
+    var cont = $('liste');
+    var entrees = entreesJour(iso);
+    var total = entrees.reduce(function (s, e) { return s + e.heures; }, 0);
+    var dateAffichee = dateDepuisEntier(versEntier(new Date(iso + 'T00:00:00')));
+    $('totalJour').textContent = formateHeures(total);
+    document.title = formateDate(dateAffichee);
+    cont.innerHTML = '';
+    if (!entrees.length) {
+      var p = document.createElement('div');
+      p.className = 'vide';
+      p.textContent = 'Aucune entrée enregistrée pour ce jour.';
+      cont.appendChild(p);
+      return;
+    }
+    var table = document.createElement('table');
+    var thead = document.createElement('thead');
+    var trh = document.createElement('tr');
+    ['Projet', 'Commentaire', 'Heures', ''].forEach(function (t, i) {
+      var th = document.createElement('th');
+      th.textContent = t;
+      if (i === 2) th.className = 'heures';
+      trh.appendChild(th);
+    });
+    thead.appendChild(trh);
+    table.appendChild(thead);
+    var tbody = document.createElement('tbody');
+    entrees.forEach(function (e) {
+      var tr = document.createElement('tr');
+      var c1 = document.createElement('td');
+      c1.textContent = e.projet || '(sans projet)';
+      var c2 = document.createElement('td');
+      c2.textContent = e.commentaire;
+      if (!e.commentaire) c2.style.color = 'var(--muted)';
+      var c3 = document.createElement('td');
+      c3.className = 'heures';
+      c3.textContent = formateHeures(e.heures);
+      var c4 = document.createElement('td');
+      var btn = document.createElement('button');
+      btn.className = 'btn-suppr';
+      btn.title = 'Supprimer cette entrée';
+      btn.textContent = '✕';
+      btn.addEventListener('click', function () { supprimerEntree(e.id); });
+      c4.appendChild(btn);
+      tr.appendChild(c1);
+      tr.appendChild(c2);
+      tr.appendChild(c3);
+      tr.appendChild(c4);
+      tbody.appendChild(tr);
+    });
+    table.appendChild(tbody);
+    cont.appendChild(table);
+  }
+
+  function rend() {
+    rendResume();
+    rendListe();
+    majSugestionsProjets();
+  }
+
+  function deplacerJours(n) {
+    var iso = $('jourAffiche').value;
+    var d = new Date(iso + 'T00:00:00');
+    d.setDate(d.getDate() + n);
+    $('jourAffiche').value = versISO(d);
+    $('date').value = $('jourAffiche').value;
+    rend();
+  }
+
+  async function enregistrer(ev) {
+    ev.preventDefault();
+    var noms = nomsColonnes(state.mappings);
+    var date = $('date').value;
+    var projet = $('projet').value.trim();
+    var heures = $('heures').value;
+    var commentaire = $('commentaire').value.trim();
+    if (!date || !projet || heures === '') {
+      return;
+    }
+    var Q = Number(heures);
+    if (!(Q > 0)) {
+      montreBandeau('Le nombre d\u2019heures doit \u00eatre sup\u00e9rieur \u00e0 0.');
+      return;
+    }
+    var bouton = $('btnAjouter');
+    bouton.disabled = true;
+    try {
+      var champs = {};
+      champs[noms.heures] = Q;
+      champs[noms.date] = date;
+      champs[noms.projet] = projet;
+      if (commentaire) champs[noms.commentaire] = commentaire;
+      await grist.getTable().create(champs);
+      $('heures').value = '';
+      $('commentaire').value = '';
+      $('projet').value = '';
+      $('projet').focus();
+    } catch (err) {
+      montreBandeau('Impossible d\u2019enregistrer : ' + (err && err.message ? err.message : err) +
+        '. V\u00e9rifiez le niveau d\u2019acc\u00e8s du widget (Acc\u00e8s complet) et les colonnes dans le panneau de cr\u00e9ation.');
+    } finally {
+      bouton.disabled = false;
+    }
+  }
+
+  async function supprimerEntree(rowId) {
+    if (!window.confirm('Supprimer cette entrée ?')) return;
+    try {
+      await grist.getTable().destroy(rowId);
+    } catch (err) {
+      montreBandeau('Impossible de supprimer : ' + (err && err.message ? err.message : err));
+    }
+  }
+
+  try {
+    grist.ready({
+      requiredAccess: 'full',
+      columns: COLS
+    });
+  } catch (e) {
+    grist.ready({ requiredAccess: 'full' });
+  }
+
+  grist.onRecords(function (records, mapping) {
+    state.entrees = records || [];
+    state.mappings = mapping;
+    rend();
+  });
+
+  grist.onOptions(function (options, settings) {
+    if (settings && settings.accessLevel && settings.accessLevel !== 'full') {
+      montreBandeau('Ce widget a besoin du niveau d\u2019acc\u00e8s \u00ab Acc\u00e8s complet \u00bb pour ajouter des lignes. Ouvrez le menu du widget puis \u00ab Autoriser l\u2019acc\u00e8s \u00bb.');
+    } else {
+      $('banner').hidden = true;
+    }
+  });
+
+  $('jourAffiche').value = versISO(new Date());
+  $('date').value = $('jourAffiche').value;
+  $('jourAffiche').addEventListener('change', function () {
+    $('date').value = $('jourAffiche').value;
+    rend();
+  });
+  $('jourPrecedent').addEventListener('click', function () { deplacerJours(-1); });
+  $('jourSuivant').addEventListener('click', function () { deplacerJours(1); });
+  $('form').addEventListener('submit', enregistrer);
+  rend();
+})();
+</script>
+</body>
+</html>

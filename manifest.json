@@ -1,0 +1,10 @@
+{
+  "widgets": [
+    {
+      "widgetId": "grist-saisie-temps",
+      "name": "Saisie du temps",
+      "url": "grist-saisie-temps.html",
+      "description": "Saisie du temps passé sur chaque projet : date, projet, heures, commentaire. Ajoute une ligne dans la table liée au widget."
+    }
+  ]
+}

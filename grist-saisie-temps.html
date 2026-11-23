@@ -257,6 +257,8 @@
     mappings: null,
     colonnes: null,
     champs: {},
+    preparationEnCours: false,
+    erreurRefMontree: false,
     dernierFetchRefs: 0
   };
 
@@ -426,12 +428,18 @@
   async function getSchemaColonnes(tableId) {
     try {
       var t = await grist.docApi.getAccessToken({ readOnly: true });
-      var res = await fetch(t.baseUrl + '/tables/' + encodeURIComponent(tableId) + '/columns', {
-        headers: { 'Authorization': 'Bearer ' + t.token }
-      });
-      if (!res.ok) return null;
-      var data = await res.json();
-      return data && data.columns ? data.columns : null;
+      var requetes = [
+        t.baseUrl + '/tables/' + encodeURIComponent(tableId) + '/columns?auth=' + encodeURIComponent(t.token)
+      ];
+      for (var i = 0; i < requetes.length; i++) {
+        try {
+          var res = await fetch(requetes[i]);
+          if (!res.ok) continue;
+          var data = await res.json();
+          if (data && data.columns) return data.columns;
+        } catch (e) { /* essai suivant */ }
+      }
+      return null;
     } catch (e) {
       return null;
     }
@@ -466,12 +474,15 @@
   }
 
   async function preparerChamps() {
+    if (state.champs.projet || state.preparationEnCours) return;
+    state.preparationEnCours = true;
     try {
       var noms = nomsColonnes(state.mappings);
       var tableId = await grist.getSelectedTableId();
-      if (!tableId) return;
+      if (!tableId) { reessayerChamps(); return; }
       var colonnes = await getSchemaColonnes(tableId);
-      if (!colonnes) return;
+      if (!colonnes) { reessayerChamps(); return; }
+      essaisChamps = 0;
       state.colonnes = colonnes;
       CLES_CHOIX.forEach(function (info) {
         var c = colonnes.find(function (col) { return col.id === noms[info.cle]; });
@@ -503,7 +514,17 @@
       });
       rend();
     } catch (e) {
-      /* reste en mode texte */
+      reessayerChamps();
+    } finally {
+      state.preparationEnCours = false;
+    }
+  }
+
+  var essaisChamps = 0;
+  function reessayerChamps() {
+    if (essaisChamps < 10 && !state.champs.projet) {
+      essaisChamps++;
+      setTimeout(function () { preparerChamps(); }, 1000);
     }
   }
 
@@ -523,7 +544,11 @@
       cfg.labelCol = choisirLabelCol(cfg.lignes);
       construireSelect(cle);
     } catch (e) {
-      /* table cible injoignable : on retente au prochain besoin */
+      if (!state.erreurRefMontree) {
+        state.erreurRefMontree = true;
+        montreBandeau('Impossible de lire la table « ' + cfg.tableId + ' » (champ « ' + cfg.libelle + ' ») : ' +
+          (e && e.message ? e.message : e) + '. Vérifiez qu’elle existe et l’accès du widget (Accès complet).');
+      }
     }
   }
 
@@ -758,7 +783,8 @@
       }
     } catch (err) {
       montreBandeau('Impossible d\u2019enregistrer : ' + (err && err.message ? err.message : err) +
-        '. V\u00e9rifiez le niveau d\u2019acc\u00e8s du widget (Acc\u00e8s complet) et les colonnes dans le panneau de cr\u00e9ation.');
+        '. V\u00e9rifiez le niveau d\u2019acc\u00e8s du widget (Acc\u00e8s complet) et les colonnes dans le panneau de cr\u00e9ation.' +
+        ' Si « Projet » est une référence, le widget doit aussi pouvoir lire la table source.');
     } finally {
       bouton.disabled = false;
     }
@@ -782,12 +808,10 @@
     grist.ready({ requiredAccess: 'full' });
   }
 
-  var introspectionFaite = false;
   grist.onRecords(function (records, mapping) {
     state.entrees = records || [];
     state.mappings = mapping;
-    if (!introspectionFaite) {
-      introspectionFaite = true;
+    if (!state.champs.projet) {
       preparerChamps();
     }
     rend();

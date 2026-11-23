@@ -425,7 +425,7 @@
       champs[noms.date] = date;
       champs[noms.projet] = projet;
       if (commentaire) champs[noms.commentaire] = commentaire;
-      await grist.getTable().create(champs);
+      await grist.getTable().create({ fields: champs });
       $('heures').value = '';
       $('commentaire').value = '';
       $('projet').value = '';

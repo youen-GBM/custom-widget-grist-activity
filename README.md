@@ -50,8 +50,16 @@ GRIST_WIDGET_LIST_URL="https://mon-serveur.example/manifest.json"
    |----------------|----------|
    | Date           | Date     |
    | Projet         | Texte **ou** Référence vers une table Projets |
+   | Activité       | Choix (optionnel) — ou Référence, ou Texte |
    | Heures         | Numérique|
    | Commentaire    | Texte    |
+
+   Le champ **Activité** est optionnel : s'il est de type **Choix**, le widget
+   affiche une liste déroulante reprise des choix de la colonne (définis depuis
+   Grist) et enregistre la valeur choisie ; s'il est de type **Référence**, il
+   affiche les lignes de la table cible ; s'il n'existe pas ou reste en Texte,
+   le widget bascule sur une saisie libre avec suggestions (et masque le champ
+   si la colonne n'existe pas).
 
 2. Ajoutez le widget sur cette table et liez-le à celle-ci
    (*Choisir les données source* → Temps).

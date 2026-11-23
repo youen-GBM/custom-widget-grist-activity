@@ -213,6 +213,11 @@
       </label>
     </div>
     <div class="row">
+      <label class="grow" id="labelActivite">Activité
+        <input type="text" id="activite" list="activites" placeholder="Optionnel" />
+        <select id="activiteRef" style="display:none"></select>
+        <datalist id="activites"></datalist>
+      </label>
       <label class="grow">Commentaire
         <input type="text" id="commentaire" placeholder="Optionnel" />
       </label>
@@ -238,6 +243,7 @@
   var COLS = [
     { name: 'Date', title: 'Date', type: 'Date' },
     { name: 'Projet', title: 'Projet', optional: true },
+    { name: 'Activité', title: 'Activité', optional: true },
     { name: 'Heures', title: 'Heures', type: 'Numeric' },
     { name: 'Commentaire', title: 'Commentaire', type: 'Text', optional: true }
   ];
@@ -249,12 +255,15 @@
   var state = {
     entrees: [],
     mappings: null,
-    refMode: null,
-    refLignes: [],
-    refLabelCol: null,
-    refIndex: {},
+    colonnes: null,
+    champs: {},
     dernierFetchRefs: 0
   };
+
+  var CLES_CHOIX = [
+    { cle: 'projet', libelle: 'projet', saisie: 'projet', select: 'projetRef', datalist: 'projets' },
+    { cle: 'activite', libelle: 'activité', saisie: 'activite', select: 'activiteRef', datalist: 'activites' }
+  ];
 
   var $ = function (id) { return document.getElementById(id); };
 
@@ -267,7 +276,9 @@
   function versDate(valeur) {
     if (valeur == null) return null;
     if (valeur instanceof Date && !isNaN(valeur)) return valeur;
-    if (typeof valeur === 'number') return valeur; // jours depuis l'époque (code 'd')
+    if (typeof valeur === 'number') {
+      return isFinite(valeur) ? new Date(valeur * 86400000) : null; // jours depuis l'époque (code 'd')
+    }
     if (Array.isArray(valeur) && valeur[0] === 'd') return valeur[1];
     if (typeof valeur.toDate === 'function') return valeur.toDate(); // moment
     if (typeof valeur === 'string') {
@@ -332,6 +343,7 @@
     return {
       date: nom('Date'),
       projet: nom('Projet'),
+      activite: nom('Activité'),
       heures: nom('Heures'),
       commentaire: nom('Commentaire')
     };
@@ -344,7 +356,8 @@
         return {
           id: r.id,
           date: versDate(r[noms.date]),
-          projet: labelProjet(r[noms.projet]),
+          projet: labelPour('projet', r[noms.projet]),
+          activite: labelPour('activite', r[noms.activite]),
           heures: Number(r[noms.heures]) || 0,
           commentaire: r[noms.commentaire] != null ? String(r[noms.commentaire]) : ''
         };
@@ -355,19 +368,35 @@
       .sort(function (a, b) { return a.id - b.id; });
   }
 
-  function labelProjet(valeur) {
-    if (valeur == null || valeur === '') return '(sans projet)';
-    if (state.refMode) {
-      var cle = String(valeur);
-      if (cle in state.refIndex) return state.refIndex[cle];
-      demanderRafraichissementRefs();
+  function labelPour(cle, valeur) {
+    if (valeur == null || valeur === '') return '';
+    var cfg = state.champs[cle];
+    if (cfg && cfg.mode === 'ref') {
+      var k = String(valeur);
+      if (cfg.index && (k in cfg.index)) return cfg.index[k];
+      demanderRafraichissement(cle);
       return '#' + valeur;
     }
     return String(valeur);
   }
 
+  function valeursUniques(colId) {
+    var set = {};
+    state.entrees.forEach(function (r) {
+      var v = r[colId];
+      if (v != null && v !== '') set[String(v)] = true;
+    });
+    return Object.keys(set).sort(function (a, b) { return a.localeCompare(b, 'fr'); });
+  }
+
+  function colonneDisponible(cle) {
+    if (!state.colonnes) return true;
+    var noms = nomsColonnes(state.mappings);
+    return state.colonnes.some(function (c) { return c.id === noms[cle]; });
+  }
+
   function projetsConnus() {
-    if (state.refMode) return [];
+    if (state.champs.projet) return [];
     var noms = nomsColonnes(state.mappings);
     var set = {};
     state.entrees.forEach(function (r) {
@@ -379,13 +408,18 @@
     });
   }
 
-  function majSugestionsProjets() {
-    var dl = $('projets');
-    dl.innerHTML = '';
-    projetsConnus().forEach(function (p) {
-      var o = document.createElement('option');
-      o.value = p;
-      dl.appendChild(o);
+  function majSugestions() {
+    CLES_CHOIX.forEach(function (info) {
+      if (state.champs[info.cle]) return;
+      var dl = $(info.datalist);
+      if (!dl) return;
+      var noms = nomsColonnes(state.mappings);
+      dl.innerHTML = '';
+      valeursUniques(noms[info.cle]).forEach(function (v) {
+        var o = document.createElement('option');
+        o.value = v;
+        dl.appendChild(o);
+      });
     });
   }
 
@@ -431,61 +465,87 @@
     return cols.length ? cols[0] : null;
   }
 
-  async function preparerRefs() {
+  async function preparerChamps() {
     try {
       var noms = nomsColonnes(state.mappings);
       var tableId = await grist.getSelectedTableId();
       if (!tableId) return;
       var colonnes = await getSchemaColonnes(tableId);
       if (!colonnes) return;
-      var c = colonnes.find(function (col) { return col.id === noms.projet; });
-      var t = c && c.fields && typeof c.fields.type === 'string' ? c.fields.type : '';
-      if (t.indexOf('Ref:') === 0 || t.indexOf('Ref ') === 0) {
-        state.refMode = { tableId: t.split(':')[1] || 'Projets' };
-        await chargerRefs();
-        rend();
-      }
+      state.colonnes = colonnes;
+      CLES_CHOIX.forEach(function (info) {
+        var c = colonnes.find(function (col) { return col.id === noms[info.cle]; });
+        if (!c || !c.fields || typeof c.fields.type !== 'string') return;
+        var t = c.fields.type;
+        if (t.indexOf('Ref:') === 0) {
+          state.champs[info.cle] = {
+            mode: 'ref',
+            tableId: t.split(':')[1],
+            select: info.select,
+            libelle: info.libelle
+          };
+        } else if (t === 'Choice') {
+          var choices = c.fields.typeOptions && Array.isArray(c.fields.typeOptions.choices)
+            ? c.fields.typeOptions.choices
+            : valeursUniques(noms[info.cle]);
+          state.champs[info.cle] = {
+            mode: 'choice',
+            choices: choices,
+            select: info.select,
+            libelle: info.libelle
+          };
+        }
+      });
+      CLES_CHOIX.forEach(function (info) {
+        if (state.champs[info.cle] && state.champs[info.cle].mode === 'ref') {
+          chargerRef(info.cle);
+        }
+      });
+      rend();
     } catch (e) {
       /* reste en mode texte */
     }
   }
 
-  function demanderRafraichissementRefs() {
+  function demanderRafraichissement(cle) {
     if (Date.now() - state.dernierFetchRefs > 5000) {
-      chargerRefs().then(function () { rend(); });
+      chargerRef(cle).then(function () { rend(); });
     }
   }
 
-  async function chargerRefs() {
-    if (!state.refMode) return;
+  async function chargerRef(cle) {
+    var cfg = state.champs[cle];
+    if (!cfg || cfg.mode !== 'ref') return;
     state.dernierFetchRefs = Date.now();
     try {
-      var table = await grist.docApi.fetchTable(state.refMode.tableId);
-      state.refLignes = normaliserLignes(table);
-      state.refLabelCol = choisirLabelCol(state.refLignes);
-      construireSelect();
+      var table = await grist.docApi.fetchTable(cfg.tableId);
+      cfg.lignes = normaliserLignes(table);
+      cfg.labelCol = choisirLabelCol(cfg.lignes);
+      construireSelect(cle);
     } catch (e) {
       /* table cible injoignable : on retente au prochain besoin */
     }
   }
 
-  function construireSelect() {
+  function construireSelect(cle) {
+    var cfg = state.champs[cle];
+    if (!cfg || cfg.mode !== 'ref') return;
+    var sel = $(cfg.select);
     var index = {};
-    state.refLignes.forEach(function (r) {
-      var lbl = state.refLabelCol && r[state.refLabelCol] != null && r[state.refLabelCol] !== ''
-        ? String(r[state.refLabelCol])
+    (cfg.lignes || []).forEach(function (r) {
+      var lbl = cfg.labelCol && r[cfg.labelCol] != null && r[cfg.labelCol] !== ''
+        ? String(r[cfg.labelCol])
         : '#' + r.id;
       index[String(r.id)] = lbl;
     });
-    state.refIndex = index;
-    var sel = $('projetRef');
+    cfg.index = index;
     var actuel = sel.value;
     sel.innerHTML = '';
     var vide = document.createElement('option');
     vide.value = '';
-    vide.textContent = '— Choisir un projet —';
+    vide.textContent = '— Choisir un ' + cfg.libelle + ' —';
     sel.appendChild(vide);
-    state.refLignes
+    (cfg.lignes || [])
       .map(function (r) { return { id: r.id, label: index[String(r.id)] }; })
       .sort(function (a, b) { return a.label.localeCompare(b.label, 'fr'); })
       .forEach(function (p) {
@@ -497,20 +557,46 @@
     if (actuel && (actuel in index)) sel.value = actuel;
   }
 
-  function majChampProjet() {
-    var input = $('projet');
-    var select = $('projetRef');
-    if (state.refMode) {
-      input.style.display = 'none';
-      input.required = false;
-      select.style.display = '';
-      select.required = true;
-    } else {
-      select.style.display = 'none';
-      select.required = false;
-      input.style.display = '';
-      input.required = true;
-    }
+  function remplirChoices(cle) {
+    var cfg = state.champs[cle];
+    if (!cfg || cfg.mode !== 'choice') return;
+    var sel = $(cfg.select);
+    var actuel = sel.value;
+    sel.innerHTML = '';
+    var vide = document.createElement('option');
+    vide.value = '';
+    vide.textContent = '— Aucune «' + cfg.libelle + '» —';
+    sel.appendChild(vide);
+    cfg.choices.forEach(function (c) {
+      var o = document.createElement('option');
+      o.value = c;
+      o.textContent = c;
+      sel.appendChild(o);
+    });
+    if (actuel && cfg.choices.indexOf(actuel) >= 0) sel.value = actuel;
+  }
+
+  function majChampsSpeciaux() {
+    CLES_CHOIX.forEach(function (info) {
+      var input = $(info.saisie);
+      var select = $(info.select);
+      var cfg = state.champs[info.cle];
+      var enSelect = !!cfg;
+      if (info.cle === 'activite' && !colonneDisponible('activite')) {
+        input.style.display = 'none';
+        select.style.display = 'none';
+        input.required = false;
+        select.required = false;
+        var label = $('labelActivite');
+        if (label) label.style.display = 'none';
+        return;
+      }
+      input.style.display = enSelect ? 'none' : '';
+      select.style.display = enSelect ? '' : 'none';
+      input.required = info.cle === 'projet' && !enSelect;
+      select.required = info.cle === 'projet' && enSelect;
+      if (enSelect && cfg.mode === 'choice') remplirChoices(info.cle);
+    });
   }
 
   function rendResume() {
@@ -570,10 +656,10 @@
     var table = document.createElement('table');
     var thead = document.createElement('thead');
     var trh = document.createElement('tr');
-    ['Projet', 'Commentaire', 'Heures', ''].forEach(function (t, i) {
+    ['Projet', 'Activité', 'Commentaire', 'Heures', ''].forEach(function (t, i) {
       var th = document.createElement('th');
       th.textContent = t;
-      if (i === 2) th.className = 'heures';
+      if (i === 3) th.className = 'heures';
       trh.appendChild(th);
     });
     thead.appendChild(trh);
@@ -584,22 +670,26 @@
       var c1 = document.createElement('td');
       c1.textContent = e.projet || '(sans projet)';
       var c2 = document.createElement('td');
-      c2.textContent = e.commentaire;
-      if (!e.commentaire) c2.style.color = 'var(--muted)';
+      c2.textContent = e.activite;
+      if (!e.activite) c2.style.color = 'var(--muted)';
       var c3 = document.createElement('td');
-      c3.className = 'heures';
-      c3.textContent = formateHeures(e.heures);
+      c3.textContent = e.commentaire;
+      if (!e.commentaire) c3.style.color = 'var(--muted)';
       var c4 = document.createElement('td');
+      c4.className = 'heures';
+      c4.textContent = formateHeures(e.heures);
+      var c5 = document.createElement('td');
       var btn = document.createElement('button');
       btn.className = 'btn-suppr';
       btn.title = 'Supprimer cette entrée';
       btn.textContent = '✕';
       btn.addEventListener('click', function () { supprimerEntree(e.id); });
-      c4.appendChild(btn);
+      c5.appendChild(btn);
       tr.appendChild(c1);
       tr.appendChild(c2);
       tr.appendChild(c3);
       tr.appendChild(c4);
+      tr.appendChild(c5);
       tbody.appendChild(tr);
     });
     table.appendChild(tbody);
@@ -609,8 +699,8 @@
   function rend() {
     rendResume();
     rendListe();
-    majSugestionsProjets();
-    majChampProjet();
+    majSugestions();
+    majChampsSpeciaux();
   }
 
   function deplacerJours(n) {
@@ -625,11 +715,17 @@
   async function enregistrer(ev) {
     ev.preventDefault();
     var noms = nomsColonnes(state.mappings);
-    var enModeRef = !!state.refMode;
-    var projet = enModeRef ? '' : $('projet').value.trim();
+    var date = $('date').value;
+    var cfgProjet = state.champs.projet;
+    var projetEnRef = !!(cfgProjet && cfgProjet.mode === 'ref');
+    var projet = projetEnRef ? '' : $('projet').value.trim();
+    var cfgActivite = state.champs.activite;
+    var activiteEnRef = !!(cfgActivite && cfgActivite.mode === 'ref');
+    var champActivite = cfgActivite ? $(cfgActivite.select) : $('activite');
+    var activite = champActivite ? champActivite.value.trim() : '';
     var heuresBrut = $('heures').value;
     var commentaire = $('commentaire').value.trim();
-    var projetValide = enModeRef ? !!$('projetRef').value : !!projet;
+    var projetValide = projetEnRef ? !!$('projetRef').value : !!projet;
     if (!date || !projetValide || String(heuresBrut).trim() === '') {
       return;
     }
@@ -644,12 +740,16 @@
       var champs = {};
       champs[noms.heures] = Q;
       champs[noms.date] = date;
-      champs[noms.projet] = enModeRef ? Number($('projetRef').value) : projet;
+      champs[noms.projet] = projetEnRef ? Number($('projetRef').value) : projet;
+      if (activite) {
+        champs[noms.activite] = activiteEnRef ? Number($('activiteRef').value) : activite;
+      }
       if (commentaire) champs[noms.commentaire] = commentaire;
       await grist.getTable().create({ fields: champs });
       $('heures').value = '';
       $('commentaire').value = '';
-      if (enModeRef) {
+      if (champActivite) champActivite.value = '';
+      if (projetEnRef) {
         $('projetRef').value = '';
         $('projetRef').focus();
       } else {
@@ -688,7 +788,7 @@
     state.mappings = mapping;
     if (!introspectionFaite) {
       introspectionFaite = true;
-      preparerRefs();
+      preparerChamps();
     }
     rend();
   });

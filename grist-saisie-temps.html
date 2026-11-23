@@ -152,8 +152,8 @@
         <input type="text" id="projet" list="projets" required placeholder="Nom du projet" />
         <datalist id="projets"></datalist>
       </label>
-      <label>Heures
-        <input type="number" id="heures" min="0" step="0.25" required inputmode="decimal" />
+      <label>Heures (centièmes)
+        <input type="text" id="heures" required inputmode="decimal" placeholder="1,75" title="Heures en centièmes — ex. 1,75 = 1 h 45. Accepte aussi 1h45 ou 1:45." />
       </label>
     </div>
     <div class="row">
@@ -235,9 +235,31 @@
     return JOURS[date.getDay()] + ' ' + date.getDate() + ' ' + MOIS[date.getMonth()] + ' ' + date.getFullYear();
   }
 
+  function parseHeures(brut) {
+    var s = String(brut == null ? '' : brut).trim().replace(/\s+/g, '').toLowerCase();
+    if (!s) return null;
+    var m = s.match(/^(\d+)[h:](\d{1,2})$/);
+    if (m) {
+      var mn = parseInt(m[2], 10);
+      if (mn > 59) return null;
+      return parseInt(m[1], 10) + mn / 60;
+    }
+    m = s.match(/^(\d+)[h:]?$/);
+    if (m) return parseInt(m[1], 10);
+    m = s.match(/^(\d+)(?:m|mn|min)$/);
+    if (m) return parseInt(m[1], 10) / 60;
+    m = s.match(/^(\d+)[.,](\d+)$/);
+    if (m) return parseFloat(m[1] + '.' + m[2]);
+    return null;
+  }
+
   function formateHeures(h) {
-    var arrondi = Math.round(h * 100) / 100;
-    return String(arrondi).replace('.', ',') + ' h';
+    var minutes = Math.round(h * 60);
+    var hh = Math.floor(minutes / 60);
+    var mn = minutes % 60;
+    if (hh === 0) return mn + ' min';
+    if (mn === 0) return hh + ' h';
+    return hh + ' h ' + ('0' + mn).slice(-2);
   }
 
   function nomsColonnes(mapping) {
@@ -407,14 +429,14 @@
     var noms = nomsColonnes(state.mappings);
     var date = $('date').value;
     var projet = $('projet').value.trim();
-    var heures = $('heures').value;
+    var heuresBrut = $('heures').value;
     var commentaire = $('commentaire').value.trim();
-    if (!date || !projet || heures === '') {
+    if (!date || !projet || String(heuresBrut).trim() === '') {
       return;
     }
-    var Q = Number(heures);
+    var Q = parseHeures(heuresBrut);
     if (!(Q > 0)) {
-      montreBandeau('Le nombre d\u2019heures doit \u00eatre sup\u00e9rieur \u00e0 0.');
+      montreBandeau('Heures invalides. Saisissez des centi\u00e8mes d\u2019heures (ex. 1,75) ou une dur\u00e9e (ex. 1h45 / 1:45).');
       return;
     }
     var bouton = $('btnAjouter');

@@ -79,6 +79,47 @@
     color: var(--muted);
   }
   label.grow { flex: 1; min-width: 160px; }
+  .aide-ligne { display: flex; align-items: center; gap: 6px; width: 100%; }
+  .aide {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 15px;
+    height: 15px;
+    border-radius: 50%;
+    background: var(--border);
+    color: #fff;
+    font-size: 10px;
+    font-weight: bold;
+    line-height: 1;
+    cursor: help;
+    position: relative;
+    user-select: none;
+    flex: none;
+  }
+  .aide:hover, .aide:focus { background: var(--accent); outline: none; }
+  .aide::after {
+    content: attr(data-tip);
+    display: none;
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    top: 20px;
+    width: 220px;
+    background: #2b2f36;
+    color: #fff;
+    font-size: 12px;
+    font-weight: normal;
+    line-height: 1.4;
+    padding: 8px 10px;
+    border-radius: 6px;
+    text-align: left;
+    white-space: pre-line;
+    z-index: 10;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, .25);
+    cursor: default;
+  }
+  .aide:hover::after, .aide:focus::after { display: block; }
   input {
     border: 1px solid var(--border);
     border-radius: 4px;
@@ -153,7 +194,11 @@
         <datalist id="projets"></datalist>
       </label>
       <label>Heures (centièmes)
-        <input type="text" id="heures" required inputmode="decimal" placeholder="1,75" title="Heures en centièmes — ex. 1,75 = 1 h 45. Accepte aussi 1h45 ou 1:45." />
+        <span class="aide-ligne">
+          <span class="aide" tabindex="0" aria-label="Aide : heures en centièmes"
+            data-tip="Temps en centièmes d'heures : 1,75 = 1 h 45, 0,25 = 15 min.&#160;&#10;Vous pouvez aussi taper une durée : 1h45, 1:45 ou 45 min.&#160;&#10;La valeur enregistrée dans Grist reste en centièmes (1,75).">?</span>
+          <input type="text" id="heures" required inputmode="decimal" placeholder="1,75" title="Heures en centièmes — ex. 1,75 = 1 h 45. Accepte aussi 1h45 ou 1:45." />
+        </span>
       </label>
     </div>
     <div class="row">

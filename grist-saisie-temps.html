@@ -45,7 +45,7 @@
     padding: 3px 6px;
     font: inherit;
   }
-  .total-jour { font-weight: bold; color: var(--accent); white-space: nowrap; }
+  .total-jour { font-weight: bold; color: var(--accent); white-space: nowrap;min-width:40px }
   .nav-btn {
     border: 1px solid var(--border);
     background: #fff;
@@ -386,7 +386,7 @@
       var k = String(valeur);
       if (cfg.index && (k in cfg.index)) return cfg.index[k];
       demanderRafraichissement(cle);
-      return '#' + valeur;
+      return valeur;
     }
     return String(valeur);
   }
@@ -569,7 +569,7 @@
     (cfg.lignes || []).forEach(function (r) {
       var lbl = cfg.labelCol && r[cfg.labelCol] != null && r[cfg.labelCol] !== ''
         ? String(r[cfg.labelCol])
-        : '#' + r.id;
+        : r.id;
       index[String(r.id)] = lbl;
     });
     cfg.index = index;

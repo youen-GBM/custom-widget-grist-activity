@@ -161,7 +161,7 @@
   .barre-nom { width: 34%; text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .barre-fond { flex: 1; background: #eef1f4; border-radius: 4px; height: 14px; overflow: hidden; }
   .barre-valeur { width: 52px; color: var(--muted); }
-  .barre { height: 100%; background: var(--accent); }
+  .barre { display: block; height: 100%; background: var(--accent); }
   #liste { flex: 1; overflow-y: auto; }
   table { width: 100%; border-collapse: collapse; }
   th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid #eceff1; }
@@ -645,7 +645,7 @@
     var noms = Object.keys(parProjet).sort(function (a, b) {
       return parProjet[b] - parProjet[a];
     });
-    var max = noms.length ? Math.max.apply(null, noms.map(function (n) { return parProjet[n]; })) : 0;
+    var totalJour = entrees.reduce(function (s, e) { return s + e.heures; }, 0);
     $('resume').className = noms.length ? 'visible' : '';
     rep.innerHTML = '';
     noms.forEach(function (n) {
@@ -659,7 +659,9 @@
       fond.className = 'barre-fond';
       var v = document.createElement('span');
       v.className = 'barre';
-      v.style.width = max ? (100 * parProjet[n] / max) + '%' : '0';
+      var part = totalJour ? (100 * parProjet[n] / totalJour) : 0;
+      v.style.width = part + '%';
+      v.title = Math.round(part) + '\u00a0% du jour';
       fond.appendChild(v);
       var val = document.createElement('span');
       val.className = 'barre-valeur';
